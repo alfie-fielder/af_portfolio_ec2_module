@@ -121,3 +121,69 @@ variable "volume_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "user_data_replace_on_change" {
+  description = "Whether to replace the instance when user_data changes. Set to true to force replacement; false to ignore changes."
+  type        = bool
+  default     = false
+}
+
+variable "shutdown_behavior" {
+  description = "The behaviour when the instance is shut down from the OS. Valid values: stop, terminate."
+  type        = string
+  default     = "stop"
+
+  validation {
+    condition     = contains(["stop", "terminate"], var.shutdown_behavior)
+    error_message = "shutdown_behavior must be either 'stop' or 'terminate'."
+  }
+}
+
+variable "root_volume_kms_key_id" {
+  description = "The ARN of the KMS key to use for root EBS volume encryption. If null, uses the AWS-managed key (aws/ebs)."
+  type        = string
+  default     = null
+}
+
+variable "ebs_block_devices" {
+  description = <<-EOT
+    A list of additional EBS volumes to attach to the instance.
+    Each object supports the following attributes:
+      - device_name           (required) : The device name, e.g. /dev/sdb.
+      - volume_size           (required) : Size in GiB.
+      - volume_type           (optional) : gp2, gp3, io1, io2. Defaults to gp3.
+      - iops                  (optional) : Required for io1/io2; optional for gp3.
+      - throughput            (optional) : MiB/s throughput. gp3 only.
+      - kms_key_id            (optional) : KMS key ARN. Falls back to root_volume_kms_key_id if not set.
+      - delete_on_termination (optional) : Defaults to true.
+      - snapshot_id           (optional) : Snapshot to restore from.
+  EOT
+  type = list(object({
+    device_name           = string
+    volume_size           = number
+    volume_type           = optional(string)
+    iops                  = optional(number)
+    throughput            = optional(number)
+    kms_key_id            = optional(string)
+    delete_on_termination = optional(bool)
+    snapshot_id           = optional(string)
+  }))
+  default = []
+}
+
+variable "cpu_core_count" {
+  description = "The number of CPU cores. Used to reduce vCPU count for licensing purposes. Must be set alongside cpu_threads_per_core."
+  type        = number
+  default     = null
+}
+
+variable "cpu_threads_per_core" {
+  description = "The number of threads per CPU core. Set to 1 to disable hyperthreading. Must be set alongside cpu_core_count."
+  type        = number
+  default     = null
+
+  validation {
+    condition     = var.cpu_core_count == null || var.cpu_threads_per_core != null
+    error_message = "cpu_threads_per_core must be set when cpu_core_count is set."
+  }
+}

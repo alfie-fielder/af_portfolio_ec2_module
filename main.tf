@@ -12,8 +12,11 @@ resource "aws_instance" "ec2" {
   ebs_optimized = var.ebs_optimized
   monitoring    = var.monitoring
 
-  user_data        = var.user_data_base64 != null ? null : var.user_data
-  user_data_base64 = var.user_data_base64
+  user_data                   = var.user_data_base64 != null ? null : var.user_data
+  user_data_base64            = var.user_data_base64
+  user_data_replace_on_change = var.user_data_replace_on_change
+
+  instance_initiated_shutdown_behavior = var.shutdown_behavior
 
   metadata_options {
     http_endpoint               = "enabled"
@@ -22,11 +25,39 @@ resource "aws_instance" "ec2" {
     instance_metadata_tags      = "enabled"
   }
 
+  maintenance_options {
+    auto_recovery = "default"
+  }
+
+dynamic "cpu_options" {
+  for_each = var.cpu_core_count != null ? [1] : []
+  content {
+    core_count       = var.cpu_core_count
+    threads_per_core = var.cpu_threads_per_core
+  }
+}
+
   root_block_device {
     volume_size           = var.root_volume_size
     volume_type           = var.root_volume_type
     encrypted             = true
+    kms_key_id            = var.root_volume_kms_key_id
     delete_on_termination = var.root_volume_delete_on_termination
+  }
+
+  dynamic "ebs_block_device" {
+    for_each = var.ebs_block_devices
+    content {
+      device_name           = ebs_block_device.value.device_name
+      volume_size           = ebs_block_device.value.volume_size
+      volume_type           = lookup(ebs_block_device.value, "volume_type", "gp3")
+      iops                  = lookup(ebs_block_device.value, "iops", null)
+      throughput            = lookup(ebs_block_device.value, "throughput", null)
+      encrypted             = true
+      kms_key_id            = lookup(ebs_block_device.value, "kms_key_id", var.root_volume_kms_key_id)
+      delete_on_termination = lookup(ebs_block_device.value, "delete_on_termination", true)
+      snapshot_id           = lookup(ebs_block_device.value, "snapshot_id", null)
+    }
   }
 
   tags        = var.tags
@@ -34,5 +65,20 @@ resource "aws_instance" "ec2" {
 
   lifecycle {
     ignore_changes = [ami]
+
+    precondition {
+      condition     = var.ami != null && var.ami != ""
+      error_message = "ami must be a non-empty string. Ensure the correct AMI ID is passed for this region."
+    }
+
+    precondition {
+      condition     = !(var.user_data != null && var.user_data_base64 != null)
+      error_message = "Only one of user_data or user_data_base64 may be set, not both."
+    }
+
+    precondition {
+      condition     = var.cpu_core_count == null || var.cpu_threads_per_core != null
+      error_message = "cpu_threads_per_core must be set if cpu_core_count is set."
+    }
   }
 }
