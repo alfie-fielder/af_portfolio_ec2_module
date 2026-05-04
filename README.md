@@ -6,7 +6,7 @@ This module creates an AWS EC2 instance with security-focused defaults, includin
 
 ```hcl
 module "ec2" {
-  source = "git::https://github.com/alfie-fielder/af_portfolio_ec2_module.git?ref=v1.1.0"
+  source = "git::https://github.com/alfie-fielder/af_portfolio_ec2_module.git?ref=v2.0.0"
 
   instance_type          = "t3.micro"
   ami                    = "ami-0c55b159cbfafe1f0"
@@ -22,6 +22,7 @@ module "ec2" {
   }
 
   volume_tags = {
+    Name        = "my-instance-root"
     Environment = "dev"
     ManagedBy   = "terraform"
   }
@@ -32,7 +33,7 @@ module "ec2" {
 
 ```hcl
 module "ec2" {
-  source = "git::https://github.com/alfie-fielder/af_portfolio_ec2_module.git?ref=v1.1.0"
+  source = "git::https://github.com/alfie-fielder/af_portfolio_ec2_module.git?ref=v2.0.0"
 
   instance_type          = "t3.large"
   ami                    = "ami-0c55b159cbfafe1f0"
@@ -41,12 +42,23 @@ module "ec2" {
 
   root_volume_kms_key_id = "arn:aws:kms:eu-west-2:123456789012:key/mrk-abc123"
 
+  volume_tags = {
+    Name        = "my-instance-root"
+    Environment = "prod"
+    ManagedBy   = "terraform"
+  }
+
   ebs_block_devices = [
     {
       device_name = "/dev/sdb"
       volume_size = 100
       volume_type = "gp3"
       throughput  = 250
+      tags = {
+        Name        = "my-instance-data"
+        Environment = "prod"
+        ManagedBy   = "terraform"
+      }
     }
   ]
 
@@ -61,7 +73,7 @@ module "ec2" {
 
 ```hcl
 module "ec2" {
-  source = "git::https://github.com/alfie-fielder/af_portfolio_ec2_module.git?ref=v1.1.0"
+  source = "git::https://github.com/alfie-fielder/af_portfolio_ec2_module.git?ref=v2.0.0"
 
   instance_type          = "r5.4xlarge"
   ami                    = "ami-0c55b159cbfafe1f0"
@@ -76,8 +88,19 @@ module "ec2" {
     Environment = "prod"
     ManagedBy   = "terraform"
   }
+
+  volume_tags = {
+    Name        = "my-instance-root"
+    Environment = "prod"
+    ManagedBy   = "terraform"
+  }
 }
 ```
+
+## Breaking Changes
+
+### v2.0.0
+- `volume_tags` now applies **only to the root volume**. Additional EBS volumes are tagged individually via the `tags` attribute on each `ebs_block_devices` object. If you were relying on `volume_tags` to tag all volumes, you must now set `tags` per volume in `ebs_block_devices`.
 
 ## Security Defaults
 
@@ -147,6 +170,7 @@ Each object in `ebs_block_devices` supports the following attributes:
 | `kms_key_id` | KMS key ARN. Falls back to `root_volume_kms_key_id` if not set | `string` | `null` | no |
 | `delete_on_termination` | Whether to delete the volume on instance termination | `bool` | `true` | no |
 | `snapshot_id` | Snapshot ID to restore from | `string` | `null` | no |
+| `tags` | A map of tags to assign to this volume | `map(string)` | `null` | no |
 
 ### CPU Options
 
@@ -166,7 +190,7 @@ Each object in `ebs_block_devices` supports the following attributes:
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | `tags` | A map of tags to assign to the instance | `map(string)` | `{}` | no |
-| `volume_tags` | A map of tags to assign to EBS volumes | `map(string)` | `{}` | no |
+| `volume_tags` | A map of tags to assign to the root EBS volume only | `map(string)` | `{}` | no |
 
 ## Outputs
 
@@ -188,6 +212,7 @@ Each object in `ebs_block_devices` supports the following attributes:
 - **Availability zone** — the AZ is derived from the subnet and is not a configurable input. Use the `availability_zone` output to reference it downstream.
 - **IMDSv2** — all instances launched by this module require IMDSv2. If your application code uses the metadata service, ensure it uses a session-oriented approach (AWS SDKs v2+ handle this automatically).
 - **EBS encryption** — all volumes (root and additional) are always encrypted. If `root_volume_kms_key_id` is not set, the AWS-managed key (`aws/ebs`) is used. Additional volumes fall back to `root_volume_kms_key_id` if no per-volume key is specified.
+- **EBS tagging** — `volume_tags` applies only to the root volume. Additional volumes are tagged individually via the `tags` attribute in each `ebs_block_devices` object, giving full per-volume tag control.
 - **CPU options** — `cpu_core_count` and `cpu_threads_per_core` must be set together. If neither is set, the instance uses the default vCPU count for the instance type. This is primarily useful for reducing licensing costs on software licensed per-vCPU (e.g. Oracle, Windows Server).
 - **User data** — `user_data` and `user_data_base64` are mutually exclusive. By default, changes to user data do not replace the instance — set `user_data_replace_on_change = true` to enable replacement.
 

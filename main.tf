@@ -29,13 +29,13 @@ resource "aws_instance" "ec2" {
     auto_recovery = "default"
   }
 
-dynamic "cpu_options" {
-  for_each = var.cpu_core_count != null ? [1] : []
-  content {
-    core_count       = var.cpu_core_count
-    threads_per_core = var.cpu_threads_per_core
+  dynamic "cpu_options" {
+    for_each = var.cpu_core_count != null ? [1] : []
+    content {
+      core_count       = var.cpu_core_count
+      threads_per_core = var.cpu_threads_per_core
+    }
   }
-}
 
   root_block_device {
     volume_size           = var.root_volume_size
@@ -43,6 +43,7 @@ dynamic "cpu_options" {
     encrypted             = true
     kms_key_id            = var.root_volume_kms_key_id
     delete_on_termination = var.root_volume_delete_on_termination
+    tags                  = var.volume_tags
   }
 
   dynamic "ebs_block_device" {
@@ -50,18 +51,18 @@ dynamic "cpu_options" {
     content {
       device_name           = ebs_block_device.value.device_name
       volume_size           = ebs_block_device.value.volume_size
-      volume_type           = lookup(ebs_block_device.value, "volume_type", "gp3")
-      iops                  = lookup(ebs_block_device.value, "iops", null)
-      throughput            = lookup(ebs_block_device.value, "throughput", null)
+      volume_type           = ebs_block_device.value.volume_type != null ? ebs_block_device.value.volume_type : "gp3"
+      iops                  = ebs_block_device.value.iops
+      throughput            = ebs_block_device.value.throughput
       encrypted             = true
-      kms_key_id            = lookup(ebs_block_device.value, "kms_key_id", var.root_volume_kms_key_id)
-      delete_on_termination = lookup(ebs_block_device.value, "delete_on_termination", true)
-      snapshot_id           = lookup(ebs_block_device.value, "snapshot_id", null)
+      kms_key_id            = ebs_block_device.value.kms_key_id != null ? ebs_block_device.value.kms_key_id : var.root_volume_kms_key_id
+      delete_on_termination = ebs_block_device.value.delete_on_termination != null ? ebs_block_device.value.delete_on_termination : true
+      snapshot_id           = ebs_block_device.value.snapshot_id
+      tags                  = ebs_block_device.value.tags
     }
   }
 
-  tags        = var.tags
-  volume_tags = var.volume_tags
+  tags = var.tags
 
   lifecycle {
     ignore_changes = [ami]

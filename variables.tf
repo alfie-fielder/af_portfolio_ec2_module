@@ -167,6 +167,7 @@ variable "ebs_block_devices" {
     kms_key_id            = optional(string)
     delete_on_termination = optional(bool)
     snapshot_id           = optional(string)
+    tags                  = optional(map(string))
   }))
   default = []
 }
